@@ -130,6 +130,11 @@ class BuildReleaseTests(unittest.TestCase):
             ).exists()
         )
         self.builder.verify_bundled_skill(ROOT)
+        attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        self.assertIn(
+            "portable/userdata/.config/opencode/skills/1c-bsl-code-generation/LICENSE text eol=lf",
+            attributes,
+        )
 
     def test_portable_source_tree_contains_only_release_inputs(self) -> None:
         self.builder.verify_portable_source_tree(ROOT)
