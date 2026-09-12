@@ -4,7 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import subprocess
 import tempfile
 import unittest
@@ -494,6 +494,11 @@ class BuildReleaseTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "possible API key"):
                 self.builder.scan_for_secrets(package)
+
+    def test_trusted_binary_path_matches_windows_and_posix_flavours(self) -> None:
+        self.assertTrue(self.builder._is_trusted_binary(PurePosixPath("bin/opencode.exe")))
+        self.assertTrue(self.builder._is_trusted_binary(PureWindowsPath(r"bin\opencode.exe")))
+        self.assertFalse(self.builder._is_trusted_binary(PureWindowsPath(r"other\opencode.exe")))
 
     def test_final_archive_scan_rejects_secret_and_trusts_pinned_binary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

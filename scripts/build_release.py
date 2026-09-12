@@ -7,7 +7,7 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 import re
 import shutil
 import stat
@@ -69,6 +69,10 @@ BASE_PORTABLE_SOURCE_FILES = {
     "userdata/.config/opencode/third-party/cc-1c-skills/MANIFEST.sha256",
     "userdata/.config/opencode/third-party/cc-1c-skills/SOURCE.json",
 }
+
+
+def _is_trusted_binary(relative: PurePath) -> bool:
+    return relative.parts == TRUSTED_BINARY.parts
 
 
 def _is_reparse_stat(file_stat: os.stat_result) -> bool:
@@ -470,7 +474,7 @@ def scan_for_secrets(package: Path) -> None:
         relative = path.relative_to(package)
         if _forbidden_file(path):
             raise ValueError(f"secret-bearing file is forbidden: {path.relative_to(package)}")
-        if relative == TRUSTED_BINARY:
+        if _is_trusted_binary(relative):
             continue
         if _contains_secret(path.read_bytes()):
             raise ValueError(f"possible API key found in {relative}")
@@ -498,7 +502,7 @@ def scan_archive_for_secrets(
             relative = PurePosixPath(*pure.parts[1:])
             if _forbidden_file(Path(pure.name)):
                 raise ValueError(f"archive contains secret-bearing file: {info.filename}")
-            if relative == TRUSTED_BINARY:
+            if _is_trusted_binary(relative):
                 trusted_binary_count += 1
                 actual = hashlib.sha256(archive.read(info)).hexdigest()
                 if actual != trusted_binary_sha256:
