@@ -20,9 +20,12 @@ try {
     foreach ($ScriptName in @("opencode.cmd", "check.cmd")) {
         $ScriptPath = Join-Path $TempRoot $ScriptName
         Copy-Item -LiteralPath (Join-Path $PortableRoot $ScriptName) -Destination $ScriptPath
-        $CommandLine = '""{0}""' -f $ScriptPath
-        $Output = (& cmd.exe /d /c $CommandLine 2>&1 | Out-String)
+        $CallerDirectory = (Get-Location).Path
+        $Output = (& $ScriptPath 2>&1 | Out-String)
         $ExitCode = $LASTEXITCODE
+        if ((Get-Location).Path -ne $CallerDirectory) {
+            throw "$ScriptName changed the caller working directory."
+        }
         if ($ExitCode -ne 2) {
             throw "$ScriptName returned $ExitCode instead of deterministic missing-binary exit 2. Output: $Output"
         }
