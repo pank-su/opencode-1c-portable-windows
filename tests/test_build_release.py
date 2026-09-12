@@ -364,6 +364,16 @@ class BuildReleaseTests(unittest.TestCase):
                     repository, upstream, tmp_path / "stage", manifest
                 )
 
+    def test_hardlink_count_zero_is_treated_as_unknown_not_multiple(self) -> None:
+        class FakeStat:
+            st_nlink = 0
+
+        self.assertFalse(self.builder._has_multiple_hardlinks(FakeStat()))
+        FakeStat.st_nlink = 1
+        self.assertFalse(self.builder._has_multiple_hardlinks(FakeStat()))
+        FakeStat.st_nlink = 2
+        self.assertTrue(self.builder._has_multiple_hardlinks(FakeStat()))
+
     def test_stage_portable_rejects_source_hardlink(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

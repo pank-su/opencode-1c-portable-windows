@@ -78,6 +78,12 @@ def _is_reparse_stat(file_stat: os.stat_result) -> bool:
     )
 
 
+def _has_multiple_hardlinks(file_stat: os.stat_result) -> bool:
+    # Some Windows filesystems/runners report 0 when link count is unavailable.
+    # Only a confirmed count greater than one proves a hardlink.
+    return getattr(file_stat, "st_nlink", 1) > 1
+
+
 def _regular_files_beneath(root: Path) -> list[Path]:
     root_stat = os.stat(root, follow_symlinks=False)
     if _is_reparse_stat(root_stat):
@@ -101,7 +107,7 @@ def _regular_files_beneath(root: Path) -> list[Path]:
                 if stat.S_ISDIR(entry_stat.st_mode):
                     visit(path)
                 elif stat.S_ISREG(entry_stat.st_mode):
-                    if getattr(entry_stat, "st_nlink", 1) != 1:
+                    if _has_multiple_hardlinks(entry_stat):
                         raise ValueError(f"hardlink is forbidden: {path}")
                     files.append(path)
                 else:
