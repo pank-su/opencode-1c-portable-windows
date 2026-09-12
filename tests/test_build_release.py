@@ -297,6 +297,10 @@ class BuildReleaseTests(unittest.TestCase):
         self.assertIn("build_release.py", smoke)
         self.assertIn("debug skill", smoke)
         self.assertIn("$SkillJson -join", smoke)
+        self.assertIn('$_.location -ne "<built-in>"', smoke)
+        self.assertIn("[System.IO.Path]::GetFullPath", smoke)
+        self.assertIn("Compare-Object", smoke)
+        self.assertIn("-CaseSensitive", smoke)
         self.assertIn("-ne 79", smoke)
 
     def test_make_archive_has_one_root_and_checksum_sidecar(self) -> None:

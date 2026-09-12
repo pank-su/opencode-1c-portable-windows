@@ -83,10 +83,34 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Packaged OpenCode skill discovery failed with exit code $LASTEXITCODE"
     }
-    $SkillRecords = @(($SkillJson -join [Environment]::NewLine) | ConvertFrom-Json)
-    $BundledSkills = @($SkillRecords | Where-Object { $_.location -like "$ConfigRoot*" })
+    $ParsedSkillJson = ($SkillJson -join [Environment]::NewLine) | ConvertFrom-Json
+    $SkillRecords = @()
+    foreach ($SkillRecord in $ParsedSkillJson) {
+        $SkillRecords += $SkillRecord
+    }
+    $BundledSkills = @($SkillRecords | Where-Object { $_.location -ne "<built-in>" })
     if ($BundledSkills.Count -ne 79) {
         throw "Expected 79 packaged 1C skills, discovered $($BundledSkills.Count)"
+    }
+
+    $PackagedSkillsPrefix = [System.IO.Path]::GetFullPath($env:OPENCODE_1C_SKILLS_DIR) + [System.IO.Path]::DirectorySeparatorChar
+    foreach ($SkillRecord in $BundledSkills) {
+        $SkillLocation = [System.IO.Path]::GetFullPath([string]$SkillRecord.location)
+        if (-not $SkillLocation.StartsWith($PackagedSkillsPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Discovered skill outside packaged skills directory: $SkillLocation"
+        }
+    }
+
+    $ExpectedSkillNames = @(
+        Get-ChildItem -LiteralPath $SkillsRoot -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "SKILL.md") -PathType Leaf } |
+            ForEach-Object { $_.Name } |
+            Sort-Object
+    )
+    $DiscoveredSkillNames = @($BundledSkills | ForEach-Object { $_.name } | Sort-Object)
+    $SkillDifference = @(Compare-Object -ReferenceObject $ExpectedSkillNames -DifferenceObject $DiscoveredSkillNames -CaseSensitive)
+    if ($SkillDifference.Count -ne 0) {
+        throw "Packaged OpenCode skill names differ from the exact upstream set: $($SkillDifference | Out-String)"
     }
     foreach ($RequiredSkill in @("epf-init", "form-compile", "meta-compile", "web-test")) {
         if ($RequiredSkill -notin $BundledSkills.name) {
