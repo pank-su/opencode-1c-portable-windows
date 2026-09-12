@@ -27,3 +27,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: ./tests/windows-smoke.ps1
+      - name: Parse and run upstream 1C PowerShell skills
+        if: matrix.os == 'windows-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: powershell
+        run: ./tests/windows-skills-smoke.ps1

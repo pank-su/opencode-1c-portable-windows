@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2 — 2026-09-12
+
+- Вместо промежуточного одиночного навыка добавлен полный готовый OpenCode-набор из 79 навыков `Nikolay-Shirokov/cc-1c-skills`.
+- Закреплены ветка `port-opencode`, commit, MIT-лицензия и SHA-256 manifest всех 341 upstream-файлов.
+- Добавлено portable-разрешение проектных путей `.opencode/skills/` через `OPENCODE_1C_SKILLS_DIR` без изменения upstream-файлов.
+- Windows CI разбирает все 71 PowerShell-скрипт в PowerShell 5.1, проверяет синтаксис 72 Python-скриптов, запускает `epf-init` и проверяет обнаружение 79 навыков реальным закреплённым `opencode.exe`.
+- Для `/web-test` задокументирована отдельная установка Chromium командой `npx playwright install chromium` после установки Node.js-пакетов.
+- Release-builder экспортирует входные файлы из снимка Git index, поэтому грязное рабочее дерево и внешние hardlink-файлы не могут попасть в архив.
+- Перед выполнением shell/PowerShell-команд навыков OpenCode запрашивает подтверждение пользователя; небезопасная автоматическая загрузка Apache в `web-publish` отключена по умолчанию.
+
 ## 1.0.1 — 2026-09-12
 
 - Удалён самописный навык `1c-development`.

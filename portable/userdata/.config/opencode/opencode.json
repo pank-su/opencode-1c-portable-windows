@@ -2,9 +2,17 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode-go/gpt-5.6-luna",
   "autoupdate": false,
+  "instructions": [
+    "./PORTABLE_1C_SKILLS.md"
+  ],
   "permission": {
+    "bash": {
+      "*": "ask",
+      "*web-publish*": "deny"
+    },
     "skill": {
-      "*": "allow"
+      "*": "allow",
+      "web-publish": "deny"
     }
   }
 }

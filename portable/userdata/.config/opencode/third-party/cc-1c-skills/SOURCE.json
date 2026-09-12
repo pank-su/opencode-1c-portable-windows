@@ -1,0 +1,13 @@
+{
+  "name": "cc-1c-skills",
+  "repository": "https://github.com/Nikolay-Shirokov/cc-1c-skills",
+  "branch": "port-opencode",
+  "commit": "05b3b3a58700f337a8b4e5c9e0e23f9bc0d8fdd0",
+  "generated_from_commit": "6169a7ff939aa3c73f7d9799acf693fa3bfd33ed",
+  "path": ".opencode/skills",
+  "license": "MIT",
+  "license_sha256": "e1d8517691002bad67293250bd76338b34e4891698707d9fcbdc488f6e51bd79",
+  "manifest_sha256": "2e0995f8de6822ccf48574c2f13eadea9cd8204dbded7ea07d78d8d7a5d2ca7a",
+  "skill_count": 79,
+  "file_count": 341
+}

@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
+import subprocess
 import tempfile
 import urllib.request
 import zipfile
@@ -43,25 +44,30 @@ SECRET_PATTERNS = (
 TRUSTED_BINARY = PurePosixPath("bin/opencode.exe")
 FORBIDDEN_NAMES = {"auth.json", ".env", "credentials.json"}
 FORBIDDEN_SUFFIXES = {".pem", ".p12", ".pfx", ".jks", ".key"}
-BUNDLED_SKILL_SOURCE = {
-    "name": "1c-bsl-code-generation",
-    "repository": "https://github.com/SteelMorgan/cursor-anthropic-skills",
-    "commit": "4df7122c0960d54fe1b9a7e535cc92c315cee653",
-    "path": "custom-skills/1C_BSL_SKILL.md",
-    "sha256": "f2f9d035cdd619e6475a3595f8e9b0af6cb77312216cdd22f20155fb83123124",
+BUNDLED_SKILLS_SOURCE = {
+    "name": "cc-1c-skills",
+    "repository": "https://github.com/Nikolay-Shirokov/cc-1c-skills",
+    "branch": "port-opencode",
+    "commit": "05b3b3a58700f337a8b4e5c9e0e23f9bc0d8fdd0",
+    "generated_from_commit": "6169a7ff939aa3c73f7d9799acf693fa3bfd33ed",
+    "path": ".opencode/skills",
     "license": "MIT",
-    "license_sha256": "59d246c7c36696458513387f2161fa1b912e31a52be98d4e658e84abd089918a",
+    "license_sha256": "e1d8517691002bad67293250bd76338b34e4891698707d9fcbdc488f6e51bd79",
+    "manifest_sha256": "2e0995f8de6822ccf48574c2f13eadea9cd8204dbded7ea07d78d8d7a5d2ca7a",
+    "skill_count": 79,
+    "file_count": 341,
 }
-PORTABLE_SOURCE_FILES = {
+BASE_PORTABLE_SOURCE_FILES = {
     "README.md",
     "check.cmd",
     "opencode.cmd",
     "setup-key.cmd",
     "setup-key.ps1",
+    "userdata/.config/opencode/PORTABLE_1C_SKILLS.md",
     "userdata/.config/opencode/opencode.json",
-    "userdata/.config/opencode/skills/1c-bsl-code-generation/LICENSE",
-    "userdata/.config/opencode/skills/1c-bsl-code-generation/SKILL.md",
-    "userdata/.config/opencode/skills/1c-bsl-code-generation/SOURCE.json",
+    "userdata/.config/opencode/third-party/cc-1c-skills/LICENSE",
+    "userdata/.config/opencode/third-party/cc-1c-skills/MANIFEST.sha256",
+    "userdata/.config/opencode/third-party/cc-1c-skills/SOURCE.json",
 }
 
 
@@ -95,6 +101,8 @@ def _regular_files_beneath(root: Path) -> list[Path]:
                 if stat.S_ISDIR(entry_stat.st_mode):
                     visit(path)
                 elif stat.S_ISREG(entry_stat.st_mode):
+                    if getattr(entry_stat, "st_nlink", 1) != 1:
+                        raise ValueError(f"hardlink is forbidden: {path}")
                     files.append(path)
                 else:
                     raise ValueError(f"non-regular packaged member: {path}")
@@ -139,42 +147,215 @@ def verify_sha256(path: Path, expected: str) -> None:
         raise ValueError(f"SHA-256 mismatch for {path.name}: {actual}")
 
 
-def verify_bundled_skill(repository_root: Path) -> None:
-    skills_root = (
+def _read_bundled_skills_manifest(path: Path) -> dict[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError("bundled 1C skills manifest is missing") from error
+    entries: dict[str, str] = {}
+    ordered_paths: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not match:
+            raise ValueError(f"invalid bundled skills manifest line {line_number}")
+        digest, relative = match.groups()
+        pure = PurePosixPath(relative)
+        if (
+            "\\" in relative
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or relative in entries
+        ):
+            raise ValueError(f"unsafe or duplicate bundled skills path: {relative}")
+        entries[relative] = digest
+        ordered_paths.append(relative)
+    if ordered_paths != sorted(ordered_paths):
+        raise ValueError("bundled skills manifest paths must be sorted")
+    return entries
+
+
+def verify_bundled_skills(repository_root: Path) -> dict[str, str]:
+    opencode_root = (
         repository_root
         / "portable"
         / "userdata"
         / ".config"
         / "opencode"
-        / "skills"
     )
-    skill_root = skills_root / BUNDLED_SKILL_SOURCE["name"]
-    source_path = skill_root / "SOURCE.json"
+    skills_root = opencode_root / "skills"
+    provenance_root = opencode_root / "third-party" / "cc-1c-skills"
+    source_path = provenance_root / "SOURCE.json"
+    manifest_path = provenance_root / "MANIFEST.sha256"
     try:
         source = json.loads(source_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise ValueError("bundled 1C skill source metadata is missing or invalid") from error
-    if source != BUNDLED_SKILL_SOURCE:
-        raise ValueError("bundled 1C skill source metadata does not match the pinned upstream")
-    if (skills_root / "1c-development").exists():
-        raise ValueError("the custom 1c-development skill must not be bundled")
-    verify_sha256(skill_root / "SKILL.md", source["sha256"])
-    verify_sha256(skill_root / "LICENSE", source["license_sha256"])
+        raise ValueError("bundled 1C skills source metadata is missing or invalid") from error
+    if source != BUNDLED_SKILLS_SOURCE:
+        raise ValueError("bundled 1C skills source metadata does not match the pinned upstream")
+    verify_sha256(manifest_path, source["manifest_sha256"])
+    verify_sha256(provenance_root / "LICENSE", source["license_sha256"])
+    manifest = _read_bundled_skills_manifest(manifest_path)
+    if len(manifest) != source["file_count"]:
+        raise ValueError("bundled 1C skills manifest file count is incorrect")
+
+    actual = {
+        path.relative_to(skills_root).as_posix()
+        for path in _regular_files_beneath(skills_root)
+    }
+    expected = set(manifest)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise ValueError(
+            "bundled 1C skills tree differs from the pinned upstream; "
+            f"missing={missing}; unexpected={unexpected}"
+        )
+    for relative, digest in manifest.items():
+        verify_sha256(skills_root / relative, digest)
+
+    skill_files = {
+        path
+        for path in manifest
+        if len(PurePosixPath(path).parts) == 2
+        and PurePosixPath(path).name == "SKILL.md"
+    }
+    if len(skill_files) != source["skill_count"]:
+        raise ValueError("bundled 1C skill count is incorrect")
+    for forbidden in ("1c-development", "1c-bsl-code-generation"):
+        if (skills_root / forbidden).exists():
+            raise ValueError(f"obsolete 1C skill must not be bundled: {forbidden}")
+    return manifest
 
 
 def verify_portable_source_tree(repository_root: Path) -> None:
     source_root = repository_root / "portable"
+    manifest = verify_bundled_skills(repository_root)
+    expected = BASE_PORTABLE_SOURCE_FILES | {
+        f"userdata/.config/opencode/skills/{path}" for path in manifest
+    }
     actual = {
         path.relative_to(source_root).as_posix()
         for path in _regular_files_beneath(source_root)
     }
-    if actual != PORTABLE_SOURCE_FILES:
-        missing = sorted(PORTABLE_SOURCE_FILES - actual)
-        unexpected = sorted(actual - PORTABLE_SOURCE_FILES)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
         raise ValueError(
             "portable source tree differs from the release allowlist; "
             f"missing={missing}; unexpected={unexpected}"
         )
+
+
+def export_repository_index(
+    repository_root: Path,
+    destination_root: Path,
+    extra_paths: tuple[str, ...] = (),
+) -> Path:
+    """Export release inputs from an immutable snapshot of the Git index."""
+    repository_root = repository_root.resolve(strict=True)
+    selected_roots = ("portable", *extra_paths)
+    for relative in selected_roots:
+        pure = PurePosixPath(relative)
+        if (
+            "\\" in relative
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or not pure.parts
+        ):
+            raise ValueError(f"unsafe indexed release path: {relative}")
+
+    if destination_root.exists():
+        shutil.rmtree(destination_root)
+    destination_root.mkdir(parents=True)
+
+    git_index_result = subprocess.run(
+        ["git", "rev-parse", "--git-path", "index"],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git_index = Path(git_index_result.stdout.strip())
+    if not git_index.is_absolute():
+        git_index = repository_root / git_index
+
+    with tempfile.TemporaryDirectory(
+        prefix="opencode-1c-index-",
+        dir=destination_root.parent,
+    ) as temporary:
+        index_snapshot = Path(temporary) / "index"
+        shutil.copyfile(git_index, index_snapshot)
+        git_environment = os.environ.copy()
+        git_environment["GIT_INDEX_FILE"] = str(index_snapshot)
+        listed = subprocess.run(
+            ["git", "ls-files", "--stage", "-z"],
+            cwd=repository_root,
+            env=git_environment,
+            check=True,
+            capture_output=True,
+        ).stdout
+
+        selected: list[bytes] = []
+        selected_names: set[str] = set()
+        for record in listed.split(b"\0"):
+            if not record:
+                continue
+            metadata, path_bytes = record.split(b"\t", 1)
+            mode, _object_id, stage = metadata.split(b" ", 2)
+            relative = os.fsdecode(path_bytes)
+            pure = PurePosixPath(relative)
+            include = relative == "portable" or relative.startswith("portable/")
+            include = include or relative in extra_paths
+            if not include:
+                continue
+            if (
+                "\\" in relative
+                or pure.is_absolute()
+                or ".." in pure.parts
+                or stage != b"0"
+                or mode not in {b"100644", b"100755"}
+            ):
+                raise ValueError(
+                    f"unsupported Git mode or path for release input: {relative}"
+                )
+            if relative in selected_names:
+                raise ValueError(f"duplicate indexed release path: {relative}")
+            selected.append(path_bytes)
+            selected_names.add(relative)
+
+        missing_roots = [
+            relative
+            for relative in selected_roots
+            if relative != "portable"
+            and relative not in selected_names
+        ]
+        if not any(name.startswith("portable/") for name in selected_names):
+            missing_roots.append("portable")
+        if missing_roots:
+            raise ValueError(
+                "release inputs are missing from the Git index: "
+                + ", ".join(missing_roots)
+            )
+
+        checkout_input = b"\0".join(selected) + b"\0"
+        prefix = destination_root.resolve().as_posix() + "/"
+        subprocess.run(
+            [
+                "git",
+                "checkout-index",
+                "--force",
+                f"--prefix={prefix}",
+                "-z",
+                "--stdin",
+            ],
+            cwd=repository_root,
+            env=git_environment,
+            input=checkout_input,
+            check=True,
+        )
+
+    _regular_files_beneath(destination_root / "portable")
+    return destination_root
 
 
 def download_asset(url: str, destination: Path) -> None:
@@ -349,16 +530,27 @@ def main() -> int:
     args = parser.parse_args()
 
     repository_root = Path(__file__).resolve().parents[1]
-    manifest = load_manifest(args.manifest)
-    verify_portable_source_tree(repository_root)
-    verify_bundled_skill(repository_root)
-    asset_url = (
-        "https://github.com/anomalyco/opencode/releases/download/"
-        f"v{manifest['opencode_version']}/{manifest['asset_name']}"
-    )
+    manifest_source = args.manifest
+    if not manifest_source.is_absolute():
+        manifest_source = repository_root / manifest_source
+    try:
+        manifest_relative = manifest_source.resolve(strict=False).relative_to(repository_root)
+    except ValueError as error:
+        raise ValueError("manifest must be a tracked file inside the repository") from error
 
     with tempfile.TemporaryDirectory(prefix="opencode-1c-build-") as temporary:
         temporary_root = Path(temporary)
+        indexed_repository = export_repository_index(
+            repository_root,
+            temporary_root / "indexed-repository",
+            extra_paths=(manifest_relative.as_posix(),),
+        )
+        manifest = load_manifest(indexed_repository / manifest_relative)
+        verify_portable_source_tree(indexed_repository)
+        asset_url = (
+            "https://github.com/anomalyco/opencode/releases/download/"
+            f"v{manifest['opencode_version']}/{manifest['asset_name']}"
+        )
         asset = args.asset or temporary_root / manifest["asset_name"]
         if args.asset is None:
             print(f"Downloading {asset_url}")
@@ -366,7 +558,7 @@ def main() -> int:
         verify_sha256(asset, manifest["asset_sha256"])
         trusted_binary_sha256 = hashlib.sha256(_read_opencode_binary(asset)).hexdigest()
         stage = temporary_root / "stage"
-        stage_portable(repository_root, asset, stage, manifest)
+        stage_portable(indexed_repository, asset, stage, manifest)
         archive, checksum = make_archive(
             stage,
             args.dist,

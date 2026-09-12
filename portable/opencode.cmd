@@ -5,6 +5,8 @@ set "XDG_CONFIG_HOME=%ROOT%userdata\.config"
 set "XDG_DATA_HOME=%ROOT%userdata\.local\share"
 set "XDG_CACHE_HOME=%ROOT%userdata\.cache"
 set "XDG_STATE_HOME=%ROOT%userdata\.local\state"
+set "OPENCODE_CONFIG_DIR=%ROOT%userdata\.config\opencode"
+set "OPENCODE_1C_SKILLS_DIR=%OPENCODE_CONFIG_DIR%\skills"
 set "OPENCODE_DISABLE_AUTOUPDATE=true"
 set "AUTH_FILE=%XDG_DATA_HOME%\opencode\auth.json"
 

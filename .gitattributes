@@ -5,4 +5,7 @@
 *.json text eol=lf
 *.md text eol=lf
 *.yml text eol=lf
-portable/userdata/.config/opencode/skills/1c-bsl-code-generation/LICENSE text eol=lf
+portable/userdata/.config/opencode/skills/** -text
+portable/userdata/.config/opencode/third-party/cc-1c-skills/LICENSE -text
+portable/userdata/.config/opencode/third-party/cc-1c-skills/MANIFEST.sha256 text eol=lf
+portable/userdata/.config/opencode/third-party/cc-1c-skills/SOURCE.json text eol=lf
