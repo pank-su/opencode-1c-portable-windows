@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 
@@ -364,15 +365,27 @@ class BuildReleaseTests(unittest.TestCase):
                     repository, upstream, tmp_path / "stage", manifest
                 )
 
-    def test_hardlink_count_zero_is_treated_as_unknown_not_multiple(self) -> None:
+    def test_hardlink_count_zero_uses_native_windows_fallback(self) -> None:
         class FakeStat:
             st_nlink = 0
 
-        self.assertFalse(self.builder._has_multiple_hardlinks(FakeStat()))
+        path = Path("input.txt")
+        with mock.patch.object(self.builder, "_windows_file_link_count", return_value=1):
+            self.assertFalse(
+                self.builder._has_multiple_hardlinks(path, FakeStat(), platform_name="nt")
+            )
+        with mock.patch.object(self.builder, "_windows_file_link_count", return_value=2):
+            self.assertTrue(
+                self.builder._has_multiple_hardlinks(path, FakeStat(), platform_name="nt")
+            )
         FakeStat.st_nlink = 1
-        self.assertFalse(self.builder._has_multiple_hardlinks(FakeStat()))
+        self.assertFalse(
+            self.builder._has_multiple_hardlinks(path, FakeStat(), platform_name="posix")
+        )
         FakeStat.st_nlink = 2
-        self.assertTrue(self.builder._has_multiple_hardlinks(FakeStat()))
+        self.assertTrue(
+            self.builder._has_multiple_hardlinks(path, FakeStat(), platform_name="posix")
+        )
 
     def test_stage_portable_rejects_source_hardlink(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

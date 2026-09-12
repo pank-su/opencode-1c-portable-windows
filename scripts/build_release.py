@@ -78,10 +78,82 @@ def _is_reparse_stat(file_stat: os.stat_result) -> bool:
     )
 
 
-def _has_multiple_hardlinks(file_stat: os.stat_result) -> bool:
-    # Some Windows filesystems/runners report 0 when link count is unavailable.
-    # Only a confirmed count greater than one proves a hardlink.
-    return getattr(file_stat, "st_nlink", 1) > 1
+def _windows_file_link_count(path: Path) -> int:
+    """Return the native NTFS link count when Python reports it as unavailable."""
+    if os.name != "nt":
+        raise OSError("native Windows link count is only available on Windows")
+
+    import ctypes
+    from ctypes import wintypes
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", wintypes.DWORD),
+            ("ftCreationTime", wintypes.FILETIME),
+            ("ftLastAccessTime", wintypes.FILETIME),
+            ("ftLastWriteTime", wintypes.FILETIME),
+            ("dwVolumeSerialNumber", wintypes.DWORD),
+            ("nFileSizeHigh", wintypes.DWORD),
+            ("nFileSizeLow", wintypes.DWORD),
+            ("nNumberOfLinks", wintypes.DWORD),
+            ("nFileIndexHigh", wintypes.DWORD),
+            ("nFileIndexLow", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+    get_information = kernel32.GetFileInformationByHandle
+    get_information.argtypes = [wintypes.HANDLE, ctypes.POINTER(ByHandleFileInformation)]
+    get_information.restype = wintypes.BOOL
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+
+    file_share_read_write_delete = 0x00000001 | 0x00000002 | 0x00000004
+    open_existing = 3
+    file_flag_open_reparse_point = 0x00200000
+    handle = create_file(
+        os.path.abspath(path),
+        0,
+        file_share_read_write_delete,
+        None,
+        open_existing,
+        file_flag_open_reparse_point,
+        None,
+    )
+    invalid_handle_value = wintypes.HANDLE(-1).value
+    if handle == invalid_handle_value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        information = ByHandleFileInformation()
+        if not get_information(handle, ctypes.byref(information)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return int(information.nNumberOfLinks)
+    finally:
+        close_handle(handle)
+
+
+def _has_multiple_hardlinks(
+    path: Path, file_stat: os.stat_result, *, platform_name: str = os.name
+) -> bool:
+    link_count = getattr(file_stat, "st_nlink", 0)
+    if link_count > 1:
+        return True
+    if link_count == 1:
+        return False
+    if platform_name == "nt":
+        return _windows_file_link_count(path) > 1
+    return False
 
 
 def _regular_files_beneath(root: Path) -> list[Path]:
@@ -107,7 +179,7 @@ def _regular_files_beneath(root: Path) -> list[Path]:
                 if stat.S_ISDIR(entry_stat.st_mode):
                     visit(path)
                 elif stat.S_ISREG(entry_stat.st_mode):
-                    if _has_multiple_hardlinks(entry_stat):
+                    if _has_multiple_hardlinks(path, entry_stat):
                         raise ValueError(f"hardlink is forbidden: {path}")
                     files.append(path)
                 else:
