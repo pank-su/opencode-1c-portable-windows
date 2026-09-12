@@ -2,17 +2,23 @@
 
 [![CI](https://github.com/pank-su/opencode-1c-portable-windows/actions/workflows/ci.yml/badge.svg)](https://github.com/pank-su/opencode-1c-portable-windows/actions/workflows/ci.yml)
 
-Переносимая сборка OpenCode для Windows x64 с русскоязычным навыком разработки решений 1С.
+Переносимая сборка OpenCode для Windows x64 с готовым опубликованным навыком разработки 1С/BSL.
 
 ## Возможности
 
 - официальный Windows-бинарник [OpenCode](https://github.com/anomalyco/opencode);
 - настройки, авторизация, кэш и история внутри каталога `userdata`;
 - модель по умолчанию `opencode-go/gpt-5.6-luna`;
-- навык `1c-development` для BSL, EDT, конфигуратора, OneScript, Vanessa Automation, xUnitFor1C и YAxUnit;
+- готовый навык [`1c-bsl-code-generation`](https://github.com/SteelMorgan/cursor-anthropic-skills/blob/4df7122c0960d54fe1b9a7e535cc92c315cee653/custom-skills/1C_BSL_SKILL.md) для генерации и проверки BSL-кода;
 - скрытый ввод API-ключа при первом запуске;
 - проверка SHA-256 исходного дистрибутива;
 - воспроизводимые ZIP-релизы через GitHub Actions.
+
+## Готовый навык 1С
+
+В сборку без изменений включён опубликованный навык `1c-bsl-code-generation` из репозитория [SteelMorgan/cursor-anthropic-skills](https://github.com/SteelMorgan/cursor-anthropic-skills) на закреплённом commit `4df7122c0960d54fe1b9a7e535cc92c315cee653`. Исходный `SKILL.md`, файл лицензии MIT и `SOURCE.json` с контрольными суммами входят в portable-архив. Сборка завершается ошибкой, если содержимое навыка или лицензии отличается от закреплённого upstream.
+
+Навык требует MCP-инструменты `bsl-platform-context`, `1c-metacode` и `1c-copilot-proxy.check_1c_code`, а также BSL-linter для полного цикла проверки. Они не включены в этот архив: без настроенных инструментов навык должен остановиться и сообщить, что валидация недоступна, а не выдумывать API или метаданные 1С.
 
 ## Установка
 
@@ -54,7 +60,7 @@ Workflow скачивает официальный `opencode-windows-x64.zip`, �
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 scripts/build_release.py --release-version 1.0.0
+python3 scripts/build_release.py --release-version 1.0.1
 ```
 
 Для второй команды требуется доступ к GitHub Releases; результат появится в `dist/`.

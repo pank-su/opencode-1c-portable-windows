@@ -43,6 +43,26 @@ SECRET_PATTERNS = (
 TRUSTED_BINARY = PurePosixPath("bin/opencode.exe")
 FORBIDDEN_NAMES = {"auth.json", ".env", "credentials.json"}
 FORBIDDEN_SUFFIXES = {".pem", ".p12", ".pfx", ".jks", ".key"}
+BUNDLED_SKILL_SOURCE = {
+    "name": "1c-bsl-code-generation",
+    "repository": "https://github.com/SteelMorgan/cursor-anthropic-skills",
+    "commit": "4df7122c0960d54fe1b9a7e535cc92c315cee653",
+    "path": "custom-skills/1C_BSL_SKILL.md",
+    "sha256": "f2f9d035cdd619e6475a3595f8e9b0af6cb77312216cdd22f20155fb83123124",
+    "license": "MIT",
+    "license_sha256": "59d246c7c36696458513387f2161fa1b912e31a52be98d4e658e84abd089918a",
+}
+PORTABLE_SOURCE_FILES = {
+    "README.md",
+    "check.cmd",
+    "opencode.cmd",
+    "setup-key.cmd",
+    "setup-key.ps1",
+    "userdata/.config/opencode/opencode.json",
+    "userdata/.config/opencode/skills/1c-bsl-code-generation/LICENSE",
+    "userdata/.config/opencode/skills/1c-bsl-code-generation/SKILL.md",
+    "userdata/.config/opencode/skills/1c-bsl-code-generation/SOURCE.json",
+}
 
 
 def _is_reparse_stat(file_stat: os.stat_result) -> bool:
@@ -117,6 +137,44 @@ def verify_sha256(path: Path, expected: str) -> None:
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual.lower() != expected.lower():
         raise ValueError(f"SHA-256 mismatch for {path.name}: {actual}")
+
+
+def verify_bundled_skill(repository_root: Path) -> None:
+    skills_root = (
+        repository_root
+        / "portable"
+        / "userdata"
+        / ".config"
+        / "opencode"
+        / "skills"
+    )
+    skill_root = skills_root / BUNDLED_SKILL_SOURCE["name"]
+    source_path = skill_root / "SOURCE.json"
+    try:
+        source = json.loads(source_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("bundled 1C skill source metadata is missing or invalid") from error
+    if source != BUNDLED_SKILL_SOURCE:
+        raise ValueError("bundled 1C skill source metadata does not match the pinned upstream")
+    if (skills_root / "1c-development").exists():
+        raise ValueError("the custom 1c-development skill must not be bundled")
+    verify_sha256(skill_root / "SKILL.md", source["sha256"])
+    verify_sha256(skill_root / "LICENSE", source["license_sha256"])
+
+
+def verify_portable_source_tree(repository_root: Path) -> None:
+    source_root = repository_root / "portable"
+    actual = {
+        path.relative_to(source_root).as_posix()
+        for path in _regular_files_beneath(source_root)
+    }
+    if actual != PORTABLE_SOURCE_FILES:
+        missing = sorted(PORTABLE_SOURCE_FILES - actual)
+        unexpected = sorted(actual - PORTABLE_SOURCE_FILES)
+        raise ValueError(
+            "portable source tree differs from the release allowlist; "
+            f"missing={missing}; unexpected={unexpected}"
+        )
 
 
 def download_asset(url: str, destination: Path) -> None:
@@ -292,6 +350,8 @@ def main() -> int:
 
     repository_root = Path(__file__).resolve().parents[1]
     manifest = load_manifest(args.manifest)
+    verify_portable_source_tree(repository_root)
+    verify_bundled_skill(repository_root)
     asset_url = (
         "https://github.com/anomalyco/opencode/releases/download/"
         f"v{manifest['opencode_version']}/{manifest['asset_name']}"

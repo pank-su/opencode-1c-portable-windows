@@ -1,0 +1,9 @@
+{
+  "name": "1c-bsl-code-generation",
+  "repository": "https://github.com/SteelMorgan/cursor-anthropic-skills",
+  "commit": "4df7122c0960d54fe1b9a7e535cc92c315cee653",
+  "path": "custom-skills/1C_BSL_SKILL.md",
+  "sha256": "f2f9d035cdd619e6475a3595f8e9b0af6cb77312216cdd22f20155fb83123124",
+  "license": "MIT",
+  "license_sha256": "59d246c7c36696458513387f2161fa1b912e31a52be98d4e658e84abd089918a"
+}

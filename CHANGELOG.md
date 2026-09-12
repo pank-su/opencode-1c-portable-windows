@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 — 2026-09-12
+
+- Удалён самописный навык `1c-development`.
+- Без изменений добавлен готовый опубликованный навык `1c-bsl-code-generation` из `SteelMorgan/cursor-anthropic-skills`.
+- Источник закреплён по commit и SHA-256; лицензия MIT и атрибуция включены в архив.
+
 ## 1.0.0 — 2026-09-12
 
 - Добавлена portable-сборка OpenCode для Windows x64.

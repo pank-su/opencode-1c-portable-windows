@@ -1,6 +1,6 @@
 # OpenCode 1C Portable для Windows x64
 
-Сборка содержит официальный `opencode.exe`, переносимые настройки и навык `1c-development`.
+Сборка содержит официальный `opencode.exe`, переносимые настройки и готовый опубликованный навык `1c-bsl-code-generation`.
 
 ## Запуск
 
@@ -35,9 +35,11 @@
 - модель: `opencode-go/gpt-5.6-luna`;
 - автообновление отключено;
 - конфигурация, авторизация, кэш и история находятся в `userdata`;
-- навык 1С находится в `userdata\.config\opencode\skills\1c-development\SKILL.md`.
+- навык 1С находится в `userdata\.config\opencode\skills\1c-bsl-code-generation\SKILL.md`.
 
-OpenCode увидит навык автоматически. Его можно вызвать явно: `Загрузи навык 1c-development и ...`.
+OpenCode увидит навык автоматически. Его можно вызвать явно: `Загрузи навык 1c-bsl-code-generation и ...`.
+
+Навык взят без изменений из `SteelMorgan/cursor-anthropic-skills` (MIT), commit `4df7122c0960d54fe1b9a7e535cc92c315cee653`. Источник, лицензия и контрольные суммы находятся рядом в `SOURCE.json` и `LICENSE`. Для полного цикла проверки навык ожидает MCP-инструменты `bsl-platform-context`, `1c-metacode` и `1c-copilot-proxy.check_1c_code`, а также BSL-linter; они не входят в portable-архив.
 
 ## Безопасность
 

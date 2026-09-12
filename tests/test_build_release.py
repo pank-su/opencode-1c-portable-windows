@@ -62,7 +62,7 @@ class BuildReleaseTests(unittest.TestCase):
                     / ".config"
                     / "opencode"
                     / "skills"
-                    / "1c-development"
+                    / "1c-bsl-code-generation"
                     / "SKILL.md"
                 ).is_file()
             )
@@ -94,6 +94,56 @@ class BuildReleaseTests(unittest.TestCase):
             ]
             combined = b"\n".join(path.read_bytes() for path in text_files)
             self.assertNotRegex(combined, rb"sk-[A-Za-z0-9_-]{20,}")
+
+    def test_bundled_1c_skill_is_exact_pinned_upstream(self) -> None:
+        skill_root = (
+            ROOT
+            / "portable"
+            / "userdata"
+            / ".config"
+            / "opencode"
+            / "skills"
+            / "1c-bsl-code-generation"
+        )
+        source = json.loads((skill_root / "SOURCE.json").read_text(encoding="utf-8"))
+        self.assertEqual(source["repository"], "https://github.com/SteelMorgan/cursor-anthropic-skills")
+        self.assertEqual(source["commit"], "4df7122c0960d54fe1b9a7e535cc92c315cee653")
+        self.assertEqual(source["path"], "custom-skills/1C_BSL_SKILL.md")
+        self.assertEqual(source["license"], "MIT")
+        self.assertEqual(
+            hashlib.sha256((skill_root / "SKILL.md").read_bytes()).hexdigest(),
+            "f2f9d035cdd619e6475a3595f8e9b0af6cb77312216cdd22f20155fb83123124",
+        )
+        self.assertEqual(
+            hashlib.sha256((skill_root / "LICENSE").read_bytes()).hexdigest(),
+            "59d246c7c36696458513387f2161fa1b912e31a52be98d4e658e84abd089918a",
+        )
+        self.assertFalse(
+            (
+                ROOT
+                / "portable"
+                / "userdata"
+                / ".config"
+                / "opencode"
+                / "skills"
+                / "1c-development"
+            ).exists()
+        )
+        self.builder.verify_bundled_skill(ROOT)
+
+    def test_portable_source_tree_contains_only_release_inputs(self) -> None:
+        self.builder.verify_portable_source_tree(ROOT)
+
+    def test_documentation_lists_all_ready_skill_dependencies(self) -> None:
+        for path in (ROOT / "README.md", ROOT / "portable" / "README.md"):
+            text = path.read_text(encoding="utf-8")
+            for dependency in (
+                "bsl-platform-context",
+                "1c-metacode",
+                "1c-copilot-proxy.check_1c_code",
+                "BSL-linter",
+            ):
+                self.assertIn(dependency, text, f"{dependency} is missing from {path}")
 
     def test_stage_portable_normalizes_batch_files_to_crlf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
