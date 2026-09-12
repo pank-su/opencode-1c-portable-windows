@@ -1,0 +1,6 @@
+{
+  "opencode_version": "1.18.30",
+  "asset_name": "opencode-windows-x64.zip",
+  "asset_sha256": "c8c0e0d05ac3dac544a0edfad8de9eb244bf46c6c7a131c38619d40fcf31bd1f",
+  "model": "opencode-go/gpt-5.6-luna"
+}

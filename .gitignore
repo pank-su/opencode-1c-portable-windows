@@ -1,0 +1,18 @@
+# Build products
+/dist/
+/build/
+*.zip
+*.zip.sha256
+*.exe
+
+# Credentials and portable runtime state
+**/auth.json
+**/.env
+**/.env.*
+portable/userdata/.cache/
+portable/userdata/.local/
+
+# Local tooling
+.DS_Store
+__pycache__/
+*.pyc

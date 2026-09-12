@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from scripts.build_release import SEMVER_RE
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not tag.startswith("v") or SEMVER_RE.fullmatch(tag[1:]) is None:
+              raise SystemExit(f"invalid release tag: {tag}")
+          PY
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Build portable archive
+        run: python scripts/build_release.py --release-version "${GITHUB_REF_NAME#v}"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" dist/*.zip dist/*.zip.sha256 \
+            --verify-tag \
+            --title "OpenCode 1C Portable ${GITHUB_REF_NAME}" \
+            --generate-notes
