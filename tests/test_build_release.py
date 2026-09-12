@@ -315,9 +315,14 @@ class BuildReleaseTests(unittest.TestCase):
     def test_batch_scripts_quote_missing_binary_and_check_skips_launcher(self) -> None:
         launcher = (ROOT / "portable" / "opencode.cmd").read_text(encoding="utf-8")
         check = (ROOT / "portable" / "check.cmd").read_text(encoding="utf-8")
-        self.assertIn('echo [ERROR] File not found: "%ROOT%\\bin\\opencode.exe"', launcher)
+        for script in (launcher, check):
+            self.assertIn("setlocal EnableExtensions DisableDelayedExpansion", script)
+            self.assertIn('set "ROOT=%~dp0"', script)
+            self.assertNotIn("for %%I in", script)
+        self.assertIn('echo [ERROR] File not found: "%ROOT%bin\\opencode.exe"', launcher)
         self.assertNotIn("call \"%~dp0opencode.cmd\"", check)
-        self.assertIn('"%ROOT%\\bin\\opencode.exe" --version', check)
+        self.assertNotIn('call "%ROOT%setup-key.cmd"', launcher)
+        self.assertIn('"%ROOT%bin\\opencode.exe" --version', check)
 
     def test_setup_key_script_contains_atomic_user_acl_hardening(self) -> None:
         script = (ROOT / "portable" / "setup-key.ps1").read_text(encoding="utf-8")

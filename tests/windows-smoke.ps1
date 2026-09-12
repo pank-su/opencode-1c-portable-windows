@@ -34,6 +34,20 @@ try {
         }
     }
 
+    Push-Location -LiteralPath $TempRoot
+    try {
+        foreach ($ScriptName in @("opencode.cmd", "check.cmd")) {
+            $Output = (& cmd.exe /d /v:on /c $ScriptName 2>&1 | Out-String)
+            $ExitCode = $LASTEXITCODE
+            if ($ExitCode -ne 2 -or $Output -notmatch "\[ERROR\] File not found:") {
+                throw "$ScriptName failed with inherited delayed expansion. Exit: $ExitCode Output: $Output"
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
     $SetupRoot = Join-Path $TempRoot "setup-junction"
     $OutsideRoot = Join-Path $TempRoot "outside-auth-target"
     New-Item -ItemType Directory -Path $SetupRoot | Out-Null
